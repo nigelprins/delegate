@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delegate</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark">D</div>
+        <div>
+          <h1>Delegate</h1>
+          <p>Local AI boundary</p>
+        </div>
+        <span id="status" class="status">Checking</span>
+      </header>
+
+      <section>
+        <h2>Connect this browser</h2>
+        <p>Copy the pairing token from the Delegate menu bar app.</p>
+        <form id="pairing-form">
+          <label for="token">Pairing token</label>
+          <div class="input-row">
+            <input id="token" type="password" autocomplete="off" spellcheck="false" />
+            <button type="submit">Save</button>
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <h2>How capture works</h2>
+        <ol>
+          <li>Select only the text you want to share.</li>
+          <li>Press the Delegate button in the page corner.</li>
+          <li>Delegate checks secrets and policy locally.</li>
+        </ol>
+      </section>
+
+      <aside>
+        This connector never scrapes a full conversation automatically. A system-wide network
+        filter requires the separately signed macOS extension.
+      </aside>
+      <p id="message" role="status"></p>
+    </main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

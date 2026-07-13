@@ -1,0 +1,48 @@
+:root {
+  color-scheme: light dark;
+  font: 14px/1.45 system-ui, -apple-system, sans-serif;
+  background: Canvas;
+  color: CanvasText;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { padding: 18px; }
+header { display: flex; align-items: center; gap: 11px; margin-bottom: 22px; }
+.mark {
+  display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 12px; background: #1f9d55; color: white;
+  font-size: 18px; font-weight: 750;
+}
+h1 { margin: 0; font-size: 17px; }
+header p { margin: 1px 0 0; color: GrayText; font-size: 12px; }
+.status {
+  margin-left: auto; padding: 4px 8px; border-radius: 999px;
+  background: color-mix(in srgb, GrayText 12%, transparent); font-size: 11px;
+}
+.status.online { color: #168545; background: color-mix(in srgb, #30d158 15%, transparent); }
+.status.offline { color: #d52f25; background: color-mix(in srgb, #ff453a 15%, transparent); }
+section {
+  margin: 12px 0; padding: 15px; border: 1px solid color-mix(in srgb, GrayText 24%, transparent);
+  border-radius: 13px;
+}
+h2 { margin: 0 0 7px; font-size: 14px; }
+section p, ol { margin: 0 0 12px; color: GrayText; font-size: 12px; }
+ol { padding-left: 18px; margin-bottom: 0; }
+li + li { margin-top: 6px; }
+label { display: block; margin-bottom: 5px; font-size: 11px; color: GrayText; }
+.input-row { display: flex; gap: 7px; }
+input {
+  min-width: 0; flex: 1; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid color-mix(in srgb, GrayText 32%, transparent);
+  background: Field; color: FieldText;
+}
+button {
+  border: 0; border-radius: 8px; padding: 8px 12px;
+  background: #168545; color: white; font-weight: 650; cursor: pointer;
+}
+aside {
+  padding: 12px; border-radius: 10px; background: color-mix(in srgb, GrayText 9%, transparent);
+  color: GrayText; font-size: 11px;
+}
+#message { min-height: 20px; color: #168545; font-size: 12px; }

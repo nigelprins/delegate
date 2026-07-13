@@ -1,0 +1,15 @@
+{
+  "name": "@delegate/browser-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "latest",
+    "esbuild": "latest",
+    "typescript": "latest"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Delegate AI Guard",
+  "version": "0.1.0",
+  "description": "Evaluate selected AI context against your local Delegate policy.",
+  "minimum_chrome_version": "114",
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["http://127.0.0.1:43121/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open Delegate"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://grok.com/*",
+        "https://x.com/i/grok*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
