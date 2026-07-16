@@ -149,14 +149,21 @@ public struct PolicyEngine: Sendable {
     }
 
     private func isSensitivePath(_ path: String) -> Bool {
-        let normalized = path.lowercased()
+        let normalized = path.lowercased().replacingOccurrences(of: "\\", with: "/")
         let component = URL(fileURLWithPath: normalized).lastPathComponent
         return normalized.contains("/.git/")
             || normalized.hasSuffix("/.git")
+            || normalized.contains("/.ssh/")
+            || normalized.contains("/.aws/")
+            || normalized.contains("/.gnupg/")
+            || normalized.contains("/.delegate/")
             || component == ".env"
             || component.hasPrefix(".env.")
             || component.contains("credential")
             || component.contains("private_key")
+            || component == "id_rsa"
+            || component == "id_ed25519"
+            || component == "id_ecdsa"
             || component.hasSuffix(".pem")
             || component.hasSuffix(".p12")
             || component.hasSuffix(".key")

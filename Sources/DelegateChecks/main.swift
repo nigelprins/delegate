@@ -87,6 +87,45 @@ let fileExplosion = engine.evaluate(envelope(
     purpose: "Review one file"
 ))
 
+let store = SessionStore()
+let selfAttested = AIRequestEnvelope(
+    provider: .openAI,
+    endpoint: "https://api.openai.com/v1/responses",
+    purpose: "Summarize notes",
+    paths: [],
+    contentSample: "hello",
+    estimatedBytes: 2_000_000,
+    approvedBytes: 2_000_000,
+    includesGitHistory: false,
+    classification: .publicData
+)
+let (prepared, _) = store.prepare(selfAttested)
+let budgeted = engine.evaluate(prepared)
+
+let session = store.create(
+    from: SessionStartRequest(
+        purpose: "Review auth",
+        approvedBytes: 50_000,
+        maxFiles: 3,
+        roots: ["Sources/Auth"]
+    )
+)
+let (sessionPrepared, sessionDenies) = store.prepare(
+    AIRequestEnvelope(
+        sessionId: session.sessionId,
+        provider: .xAI,
+        endpoint: "https://api.x.ai/v1/responses",
+        purpose: "Review auth",
+        paths: ["Secrets/prod.env"],
+        contentSample: "review",
+        estimatedBytes: 10_000,
+        approvedBytes: 10_000,
+        includesGitHistory: false,
+        classification: .internalData,
+        fileCount: 1
+    )
+)
+
 let results = [
     check(local.verdict == .allow, "small local-model request is allowed"),
     check(history.verdict == .deny, "Git history is denied"),
@@ -95,8 +134,16 @@ let results = [
     check(growth.verdict == .deny, "unknown endpoints and upload growth are denied"),
     check(storage.verdict == .deny, "explicit storage channel uploads are denied"),
     check(pathUpload.verdict == .deny, "telemetry-style upload paths are denied"),
-    check(fileExplosion.verdict == .deny, "file-count explosion beyond stated purpose is denied")
+    check(fileExplosion.verdict == .deny, "file-count explosion beyond stated purpose is denied"),
+    check(
+        prepared.approvedBytes == SessionStore.defaultByteCeiling,
+        "self-attested budgets are clamped to the server ceiling"
+    ),
+    check(budgeted.verdict == .deny, "clamped large transfers still require approval or deny"),
+    check(!sessionDenies.isEmpty, "session roots reject paths outside the approved scope")
 ]
+
+_ = sessionPrepared
 let failures = results.filter { !$0 }.count
 
 if failures > 0 {

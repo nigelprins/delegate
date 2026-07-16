@@ -8,6 +8,7 @@ final class LocalGateway: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.delegate.gateway")
     private let lock = NSLock()
     private let policy = PolicyEngine()
+    private let sessions = SessionStore()
     private let pairingToken: String
     private var listener: NWListener?
     private var connections: [ObjectIdentifier: HTTPConnection] = [:]
@@ -64,7 +65,7 @@ final class LocalGateway: @unchecked Sendable {
                 status: 200,
                 body: [
                     "status": lockedDown ? "locked" : "protected",
-                    "version": "0.2.0"
+                    "version": "0.3.0"
                 ]
             )
         }
@@ -80,12 +81,22 @@ final class LocalGateway: @unchecked Sendable {
                 ]
             )
         }
+        if request.method == "POST", request.path == "/v1/sessions" {
+            do {
+                let start = try JSONDecoder().decode(SessionStartRequest.self, from: request.body)
+                let response = sessions.create(from: start)
+                let body = try JSONEncoder().encode(response)
+                return HTTPResponse(status: 200, body: body)
+            } catch {
+                return .json(status: 400, body: ["error": "Invalid session request"])
+            }
+        }
         guard request.method == "POST", request.path == "/v1/evaluate" else {
             return .json(status: 404, body: ["error": "Unknown route"])
         }
 
         do {
-            let envelope = try JSONDecoder().decode(AIRequestEnvelope.self, from: request.body)
+            let rawEnvelope = try JSONDecoder().decode(AIRequestEnvelope.self, from: request.body)
             let locked = lockedDown
             let decision: PolicyDecision
             if locked {
@@ -95,9 +106,24 @@ final class LocalGateway: @unchecked Sendable {
                     redactions: []
                 )
             } else {
-                decision = policy.evaluate(envelope)
+                let (envelope, sessionDenies) = sessions.prepare(rawEnvelope)
+                var evaluated = policy.evaluate(envelope)
+                if !sessionDenies.isEmpty {
+                    evaluated = PolicyDecision(
+                        verdict: .deny,
+                        reasons: sessionDenies + evaluated.reasons,
+                        redactions: evaluated.redactions
+                    )
+                }
+                if evaluated.verdict == .allow {
+                    sessions.commit(envelope, allowed: true)
+                }
+                decision = evaluated
+                onEvent?(SecurityEvent(envelope: envelope, decision: decision))
+                let body = try JSONEncoder().encode(decision)
+                return HTTPResponse(status: 200, body: body)
             }
-            onEvent?(SecurityEvent(envelope: envelope, decision: decision))
+            onEvent?(SecurityEvent(envelope: rawEnvelope, decision: decision))
             let body = try JSONEncoder().encode(decision)
             return HTTPResponse(status: 200, body: body)
         } catch {

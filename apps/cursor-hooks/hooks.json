@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeReadFile": [
+      {
+        "command": "./hooks/delegate_before_read.py",
+        "failClosed": true
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "./hooks/delegate_before_shell.py",
+        "failClosed": true
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "./hooks/delegate_before_mcp.py",
+        "failClosed": true
+      }
+    ]
+  }
+}

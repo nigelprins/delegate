@@ -5,7 +5,9 @@ explicit, blocks secrets and repository history, records policy decisions in an
 encrypted local vault, and exposes controls from the macOS menu bar.
 
 > **Pre-release:** Delegate does not yet provide universal visibility into every
-> IDE. Read the security boundary below before relying on it.
+> IDE process. Cursor hooks and the connector protocol are the supported near-term
+> path. Read the security boundary and
+> [`docs/IMPROVEMENT_ROADMAP.md`](docs/IMPROVEMENT_ROADMAP.md) before relying on it.
 
 ## What works in this MVP
 
@@ -19,6 +21,8 @@ encrypted local vault, and exposes controls from the macOS menu bar.
 - Isolated coding-agent runner that exposes only approved files, reports to the
   local gateway, and uses a temporary HOME without `.git` history.
 - Grok Build hardening flags in every isolated run.
+- Server-owned session budgets so clients cannot self-approve unlimited uploads.
+- Cursor hooks package for sensitive file reads, risky shell, and MCP calls.
 - Network Extension source scaffold for later signed system-wide enforcement.
 
 ## Run the menu bar app
@@ -61,6 +65,15 @@ python3 tools/agent-runner/delegate_run.py \
 Use `--yes` only in automation after reviewing the include patterns. Pass
 `--skip-gateway` only when the menu bar app is not running.
 
+## Install Cursor hooks
+
+```bash
+zsh apps/cursor-hooks/install.sh
+```
+
+Paste the menu bar pairing token into `~/.delegate/config.json`, then restart
+Cursor. Details: [`apps/cursor-hooks/README.md`](apps/cursor-hooks/README.md).
+
 ## Smoke test
 
 ```bash
@@ -90,5 +103,7 @@ credentials.
 - [`SECURITY.md`](SECURITY.md)
 - [`PRIVACY.md`](PRIVACY.md)
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md)
+- [`docs/IMPROVEMENT_ROADMAP.md`](docs/IMPROVEMENT_ROADMAP.md)
+- [`docs/CONNECTOR_PROTOCOL.md`](docs/CONNECTOR_PROTOCOL.md)
 
 Licensed under the [Apache License 2.0](LICENSE).

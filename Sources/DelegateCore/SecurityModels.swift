@@ -33,6 +33,7 @@ public enum TransferChannel: String, Codable, CaseIterable, Sendable {
 }
 
 public struct AIRequestEnvelope: Codable, Sendable {
+    public var sessionId: String?
     public var provider: AIProvider
     public var endpoint: String
     public var purpose: String
@@ -46,6 +47,7 @@ public struct AIRequestEnvelope: Codable, Sendable {
     public var fileCount: Int
 
     public init(
+        sessionId: String? = nil,
         provider: AIProvider,
         endpoint: String,
         purpose: String,
@@ -58,6 +60,7 @@ public struct AIRequestEnvelope: Codable, Sendable {
         channel: TransferChannel = .model,
         fileCount: Int = 0
     ) {
+        self.sessionId = sessionId
         self.provider = provider
         self.endpoint = endpoint
         self.purpose = purpose
@@ -73,6 +76,7 @@ public struct AIRequestEnvelope: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
         provider = try container.decode(AIProvider.self, forKey: .provider)
         endpoint = try container.decode(String.self, forKey: .endpoint)
         purpose = try container.decode(String.self, forKey: .purpose)
@@ -88,6 +92,34 @@ public struct AIRequestEnvelope: Codable, Sendable {
         channel = try container.decodeIfPresent(TransferChannel.self, forKey: .channel) ?? .model
         let decodedCount = try container.decodeIfPresent(Int.self, forKey: .fileCount) ?? 0
         fileCount = decodedCount > 0 ? decodedCount : paths.count
+    }
+}
+
+public struct SessionStartRequest: Codable, Sendable {
+    public var purpose: String
+    public var approvedBytes: Int
+    public var maxFiles: Int
+    public var roots: [String]
+
+    public init(purpose: String, approvedBytes: Int, maxFiles: Int, roots: [String] = []) {
+        self.purpose = purpose
+        self.approvedBytes = approvedBytes
+        self.maxFiles = maxFiles
+        self.roots = roots
+    }
+}
+
+public struct SessionStartResponse: Codable, Sendable {
+    public var sessionId: String
+    public var approvedBytes: Int
+    public var maxFiles: Int
+    public var remainingBytes: Int
+
+    public init(sessionId: String, approvedBytes: Int, maxFiles: Int, remainingBytes: Int) {
+        self.sessionId = sessionId
+        self.approvedBytes = approvedBytes
+        self.maxFiles = maxFiles
+        self.remainingBytes = remainingBytes
     }
 }
 

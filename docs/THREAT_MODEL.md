@@ -41,8 +41,14 @@ account or hardware-level attacker.
 3. **Isolated runner** — copies an allowlisted, secret-scanned subset into a
    temporary workspace without `.git` or the user's real home directory, then
    reports the session envelope to the local gateway before launch.
+4. **Cursor hooks** — project/user hooks call the gateway before sensitive file
+   reads, risky shell commands, and risky MCP tool calls, with fail-closed
+   behavior when Delegate is unavailable.
+5. **Server-owned sessions** — byte and file budgets are clamped by the gateway;
+   clients cannot self-approve unlimited transfers.
 
-These controls cannot observe an arbitrary IDE that was started outside Delegate.
+These controls still cannot observe an arbitrary IDE or CLI that was started
+outside Delegate hooks/runner/connectors.
 
 ### Required for system-wide coverage
 
