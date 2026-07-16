@@ -18,18 +18,23 @@ private func envelope(
     content: String = "Public release notes",
     bytes: Int = 200,
     approvedBytes: Int = 500,
-    gitHistory: Bool = false
+    gitHistory: Bool = false,
+    channel: TransferChannel = .model,
+    fileCount: Int = 0,
+    purpose: String = "Security check"
 ) -> AIRequestEnvelope {
     AIRequestEnvelope(
         provider: provider,
         endpoint: endpoint,
-        purpose: "Security check",
+        purpose: purpose,
         paths: paths,
         contentSample: content,
         estimatedBytes: bytes,
         approvedBytes: approvedBytes,
         includesGitHistory: gitHistory,
-        classification: .internalData
+        classification: .internalData,
+        channel: channel,
+        fileCount: fileCount
     )
 }
 
@@ -60,12 +65,37 @@ let growth = engine.evaluate(envelope(
     approvedBytes: 1_000
 ))
 
+let storage = engine.evaluate(envelope(
+    provider: .xAI,
+    endpoint: "https://api.x.ai/v1/storage",
+    channel: .storage,
+    fileCount: 298,
+    purpose: "Reply OK, do not read any files"
+))
+
+let pathUpload = engine.evaluate(envelope(
+    provider: .xAI,
+    endpoint: "https://api.x.ai/v1/responses?trace_upload=1",
+    fileCount: 1,
+    purpose: "Review one file"
+))
+
+let fileExplosion = engine.evaluate(envelope(
+    provider: .xAI,
+    endpoint: "https://api.x.ai/v1/responses",
+    fileCount: 298,
+    purpose: "Review one file"
+))
+
 let results = [
     check(local.verdict == .allow, "small local-model request is allowed"),
     check(history.verdict == .deny, "Git history is denied"),
     check(secret.verdict == .deny, "credential files and secret patterns are denied"),
     check(!secret.redactions.isEmpty, "secret values are represented only as redactions"),
-    check(growth.verdict == .deny, "unknown endpoints and upload growth are denied")
+    check(growth.verdict == .deny, "unknown endpoints and upload growth are denied"),
+    check(storage.verdict == .deny, "explicit storage channel uploads are denied"),
+    check(pathUpload.verdict == .deny, "telemetry-style upload paths are denied"),
+    check(fileExplosion.verdict == .deny, "file-count explosion beyond stated purpose is denied")
 ]
 let failures = results.filter { !$0 }.count
 

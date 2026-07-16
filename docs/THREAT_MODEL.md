@@ -34,11 +34,13 @@ account or hardware-level attacker.
 ### Current
 
 1. **Explicit gateway** — evaluates declared provider, endpoint, content sample,
-   paths, Git-history flag, and transfer budget.
+   paths, Git-history flag, transfer channel, file count, and byte budget. An
+   emergency lock keeps the gateway up and denies every transfer.
 2. **Browser connector** — reads only explicit user selection on supported AI
    sites.
 3. **Isolated runner** — copies an allowlisted, secret-scanned subset into a
-   temporary workspace without `.git` or the user's real home directory.
+   temporary workspace without `.git` or the user's real home directory, then
+   reports the session envelope to the local gateway before launch.
 
 These controls cannot observe an arbitrary IDE that was started outside Delegate.
 

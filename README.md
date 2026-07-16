@@ -9,14 +9,15 @@ encrypted local vault, and exposes controls from the macOS menu bar.
 
 ## What works in this MVP
 
-- Native SwiftUI menu bar control center.
+- Native SwiftUI menu bar control center with emergency **Block all** lock.
 - Authenticated policy gateway at `http://127.0.0.1:43121`.
 - AES-GCM event vault. Ad-hoc development builds use a permission-locked local
   key to avoid false Keychain trust prompts; a stable signed release uses Keychain.
-- Secret, credential-file, Git-history, endpoint, and upload-budget checks.
+- Secret, credential-file, Git-history, endpoint, upload-budget, storage/telemetry
+  channel, and file-count explosion checks.
 - Chrome side panel and in-page connector for ChatGPT, Claude, and Grok.
-- Isolated coding-agent runner that exposes only approved files and uses a
-  temporary HOME without `.git` history.
+- Isolated coding-agent runner that exposes only approved files, reports to the
+  local gateway, and uses a temporary HOME without `.git` history.
 - Grok Build hardening flags in every isolated run.
 - Network Extension source scaffold for later signed system-wide enforcement.
 
@@ -49,13 +50,25 @@ The runner copies an explicit allowlist to a temporary workspace. It excludes
 Git metadata, credential files, symlinks, oversized files, and likely secrets.
 
 ```bash
+export DELEGATE_TOKEN="$(defaults read com.delegate.menubar pairingToken)"
 python3 tools/agent-runner/delegate_run.py \
   --include "Sources/**" \
   --include "Package.swift" \
+  --purpose "Review selected Swift sources" \
   -- grok -p "Review this code"
 ```
 
-Use `--yes` only in automation after reviewing the include patterns.
+Use `--yes` only in automation after reviewing the include patterns. Pass
+`--skip-gateway` only when the menu bar app is not running.
+
+## Smoke test
+
+```bash
+zsh tools/smoke_test.sh
+```
+
+With Delegate.app running, the script also hits the live gateway with allow and
+deny cases inspired by whole-repo upload failures.
 
 ## Security boundary
 

@@ -6,14 +6,28 @@ final class LocalGateway: @unchecked Sendable {
     static let port: UInt16 = 43_121
 
     private let queue = DispatchQueue(label: "com.delegate.gateway")
+    private let lock = NSLock()
     private let policy = PolicyEngine()
     private let pairingToken: String
     private var listener: NWListener?
     private var connections: [ObjectIdentifier: HTTPConnection] = [:]
+    private var isLockedDown = false
     var onEvent: (@Sendable (SecurityEvent) -> Void)?
 
     init(pairingToken: String) {
         self.pairingToken = pairingToken
+    }
+
+    func setLockedDown(_ locked: Bool) {
+        lock.lock()
+        isLockedDown = locked
+        lock.unlock()
+    }
+
+    private var lockedDown: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isLockedDown
     }
 
     func start() throws {
@@ -46,10 +60,25 @@ final class LocalGateway: @unchecked Sendable {
             return .empty(status: 204)
         }
         if request.method == "GET", request.path == "/health" {
-            return .json(status: 200, body: ["status": "protected"])
+            return .json(
+                status: 200,
+                body: [
+                    "status": lockedDown ? "locked" : "protected",
+                    "version": "0.2.0"
+                ]
+            )
         }
         guard request.headers["x-delegate-token"] == pairingToken else {
             return .json(status: 401, body: ["error": "Invalid pairing token"])
+        }
+        if request.method == "GET", request.path == "/v1/status" {
+            return .json(
+                status: 200,
+                body: [
+                    "status": lockedDown ? "locked" : "protected",
+                    "gateway": "http://127.0.0.1:\(Self.port)"
+                ]
+            )
         }
         guard request.method == "POST", request.path == "/v1/evaluate" else {
             return .json(status: 404, body: ["error": "Unknown route"])
@@ -57,7 +86,17 @@ final class LocalGateway: @unchecked Sendable {
 
         do {
             let envelope = try JSONDecoder().decode(AIRequestEnvelope.self, from: request.body)
-            let decision = policy.evaluate(envelope)
+            let locked = lockedDown
+            let decision: PolicyDecision
+            if locked {
+                decision = PolicyDecision(
+                    verdict: .deny,
+                    reasons: ["Emergency lock: all AI transfers are denied"],
+                    redactions: []
+                )
+            } else {
+                decision = policy.evaluate(envelope)
+            }
             onEvent?(SecurityEvent(envelope: envelope, decision: decision))
             let body = try JSONEncoder().encode(decision)
             return HTTPResponse(status: 200, body: body)

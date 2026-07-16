@@ -11,6 +11,8 @@ public struct SecretScanner: Sendable {
         ("OpenAI-style API key", #"\bsk-[A-Za-z0-9_-]{16,}\b"#),
         ("GitHub token", #"\bgh[pousr]_[A-Za-z0-9]{20,}\b"#),
         ("AWS access key", #"\bAKIA[0-9A-Z]{16}\b"#),
+        ("xAI-style key", #"\bxai-[A-Za-z0-9_-]{16,}\b"#),
+        ("Anthropic-style key", #"\bsk-ant-[A-Za-z0-9_-]{16,}\b"#),
         ("Credential assignment", #"(?i)\b(?:api[_-]?key|secret|password|token)\s*[:=]\s*['"]?[^\s'"]{8,}"#)
     ]
 
@@ -44,6 +46,19 @@ public struct PolicyEngine: Sendable {
         "api.anthropic.com",
         "api.x.ai"
     ]
+    private let blockedHosts = [
+        "grok-code-session-traces",
+        "storage.googleapis.com"
+    ]
+    private let blockedPathFragments = [
+        "/v1/storage",
+        "/storage",
+        "session-trace",
+        "session_trace",
+        "codebase_upload",
+        "telemetry",
+        "trace_upload"
+    ]
 
     public init() {}
 
@@ -52,9 +67,19 @@ public struct PolicyEngine: Sendable {
         var approvals: [String] = []
         let findings = scanner.scan(envelope.contentSample)
         let sensitivePaths = envelope.paths.filter(isSensitivePath)
+        let inferredChannel = inferredChannel(for: envelope)
 
         if envelope.includesGitHistory {
             hardBlocks.append("Git history may not leave the device")
+        }
+        if inferredChannel == .storage || inferredChannel == .telemetry {
+            hardBlocks.append("Repository/storage/telemetry upload channels are blocked")
+        }
+        if matchesBlockedHost(envelope.endpoint) {
+            hardBlocks.append("Destination matches a blocked storage or telemetry host")
+        }
+        if matchesBlockedPath(envelope.endpoint) {
+            hardBlocks.append("Endpoint path looks like a whole-repo or telemetry upload")
         }
         if !sensitivePaths.isEmpty {
             hardBlocks.append("Sensitive paths selected: \(sensitivePaths.joined(separator: ", "))")
@@ -65,6 +90,12 @@ public struct PolicyEngine: Sendable {
         if envelope.estimatedBytes > envelope.approvedBytes {
             hardBlocks.append("Transfer exceeds the approved data budget")
         }
+        if envelope.fileCount > 50, envelope.purpose.lowercased().contains("review")
+            || envelope.purpose.lowercased().contains("one file")
+            || envelope.purpose.lowercased().contains("selected")
+        {
+            hardBlocks.append("File count (\(envelope.fileCount)) far exceeds the stated purpose")
+        }
         if !isAllowedEndpoint(envelope.endpoint) {
             hardBlocks.append("Unknown or non-TLS destination")
         }
@@ -73,6 +104,9 @@ public struct PolicyEngine: Sendable {
         }
         if envelope.provider != .ollama && envelope.estimatedBytes > 1_000_000 {
             approvals.append("External transfer is larger than 1 MB")
+        }
+        if envelope.fileCount > 25 && inferredChannel == .model {
+            approvals.append("Large file set requires explicit approval")
         }
 
         let reasons = hardBlocks + approvals
@@ -88,6 +122,30 @@ public struct PolicyEngine: Sendable {
             reasons: reasons.isEmpty ? ["Request fits the active local policy"] : reasons,
             redactions: findings.map(\.redactedValue)
         )
+    }
+
+    private func inferredChannel(for envelope: AIRequestEnvelope) -> TransferChannel {
+        if envelope.channel != .unknown && envelope.channel != .model {
+            return envelope.channel
+        }
+        let endpoint = envelope.endpoint.lowercased()
+        if blockedPathFragments.contains(where: { endpoint.contains($0) }) {
+            return .storage
+        }
+        if matchesBlockedHost(endpoint) {
+            return .storage
+        }
+        return envelope.channel == .unknown ? .model : envelope.channel
+    }
+
+    private func matchesBlockedHost(_ endpoint: String) -> Bool {
+        guard let host = URL(string: endpoint)?.host?.lowercased() else { return false }
+        return blockedHosts.contains { host.contains($0) }
+    }
+
+    private func matchesBlockedPath(_ endpoint: String) -> Bool {
+        let lower = endpoint.lowercased()
+        return blockedPathFragments.contains { lower.contains($0) }
     }
 
     private func isSensitivePath(_ path: String) -> Bool {

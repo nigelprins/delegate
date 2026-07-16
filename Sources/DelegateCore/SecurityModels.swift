@@ -25,6 +25,13 @@ public enum DataClassification: String, Codable, CaseIterable, Sendable {
     case secret
 }
 
+public enum TransferChannel: String, Codable, CaseIterable, Sendable {
+    case model
+    case storage
+    case telemetry
+    case unknown
+}
+
 public struct AIRequestEnvelope: Codable, Sendable {
     public var provider: AIProvider
     public var endpoint: String
@@ -35,6 +42,8 @@ public struct AIRequestEnvelope: Codable, Sendable {
     public var approvedBytes: Int
     public var includesGitHistory: Bool
     public var classification: DataClassification
+    public var channel: TransferChannel
+    public var fileCount: Int
 
     public init(
         provider: AIProvider,
@@ -45,7 +54,9 @@ public struct AIRequestEnvelope: Codable, Sendable {
         estimatedBytes: Int,
         approvedBytes: Int,
         includesGitHistory: Bool,
-        classification: DataClassification
+        classification: DataClassification,
+        channel: TransferChannel = .model,
+        fileCount: Int = 0
     ) {
         self.provider = provider
         self.endpoint = endpoint
@@ -56,6 +67,27 @@ public struct AIRequestEnvelope: Codable, Sendable {
         self.approvedBytes = approvedBytes
         self.includesGitHistory = includesGitHistory
         self.classification = classification
+        self.channel = channel
+        self.fileCount = fileCount > 0 ? fileCount : paths.count
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try container.decode(AIProvider.self, forKey: .provider)
+        endpoint = try container.decode(String.self, forKey: .endpoint)
+        purpose = try container.decode(String.self, forKey: .purpose)
+        paths = try container.decodeIfPresent([String].self, forKey: .paths) ?? []
+        contentSample = try container.decodeIfPresent(String.self, forKey: .contentSample) ?? ""
+        estimatedBytes = try container.decode(Int.self, forKey: .estimatedBytes)
+        approvedBytes = try container.decode(Int.self, forKey: .approvedBytes)
+        includesGitHistory = try container.decodeIfPresent(Bool.self, forKey: .includesGitHistory) ?? false
+        classification = try container.decodeIfPresent(
+            DataClassification.self,
+            forKey: .classification
+        ) ?? .internalData
+        channel = try container.decodeIfPresent(TransferChannel.self, forKey: .channel) ?? .model
+        let decodedCount = try container.decodeIfPresent(Int.self, forKey: .fileCount) ?? 0
+        fileCount = decodedCount > 0 ? decodedCount : paths.count
     }
 }
 
@@ -85,6 +117,7 @@ public struct SecurityEvent: Identifiable, Codable, Sendable {
     public let verdict: PolicyVerdict
     public let reasons: [String]
     public let estimatedBytes: Int
+    public let channel: TransferChannel
 
     public init(envelope: AIRequestEnvelope, decision: PolicyDecision) {
         id = UUID()
@@ -94,5 +127,18 @@ public struct SecurityEvent: Identifiable, Codable, Sendable {
         verdict = decision.verdict
         reasons = decision.reasons
         estimatedBytes = envelope.estimatedBytes
+        channel = envelope.channel
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        provider = try container.decode(AIProvider.self, forKey: .provider)
+        purpose = try container.decode(String.self, forKey: .purpose)
+        verdict = try container.decode(PolicyVerdict.self, forKey: .verdict)
+        reasons = try container.decode([String].self, forKey: .reasons)
+        estimatedBytes = try container.decode(Int.self, forKey: .estimatedBytes)
+        channel = try container.decodeIfPresent(TransferChannel.self, forKey: .channel) ?? .unknown
     }
 }

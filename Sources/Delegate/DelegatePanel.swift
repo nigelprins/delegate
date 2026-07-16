@@ -22,27 +22,51 @@ struct DelegatePanel: View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(model.isPaused ? Color.orange.opacity(0.16) : Color.green.opacity(0.16))
-                Image(systemName: model.isPaused ? "shield.slash.fill" : "checkmark.shield.fill")
+                    .fill(statusColor.opacity(0.16))
+                Image(systemName: statusIcon)
                     .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(model.isPaused ? .orange : .green)
+                    .foregroundStyle(statusColor)
             }
             .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Delegate")
                     .font(.headline)
-                Text(model.isPaused ? "Protection paused" : "Local protection active")
+                Text(statusLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button(model.isLockedDown ? "Unlock" : "Block all") {
+                model.toggleLockdown()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(model.isLockedDown ? .orange : .red)
             Button(model.isPaused ? "Resume" : "Pause") {
                 model.toggleProtection()
             }
             .buttonStyle(.bordered)
+            .disabled(model.isLockedDown)
         }
         .padding(16)
+    }
+
+    private var statusLabel: String {
+        if model.isLockedDown { return "Emergency lock — all AI transfers denied" }
+        if model.isPaused { return "Protection paused" }
+        return "Local protection active"
+    }
+
+    private var statusIcon: String {
+        if model.isLockedDown { return "lock.shield.fill" }
+        if model.isPaused { return "shield.slash.fill" }
+        return "checkmark.shield.fill"
+    }
+
+    private var statusColor: Color {
+        if model.isLockedDown { return .red }
+        if model.isPaused { return .orange }
+        return .green
     }
 
     private var summary: some View {
@@ -91,7 +115,7 @@ struct DelegatePanel: View {
                 ContentUnavailableView(
                     "No traffic evaluated",
                     systemImage: "wave.3.right",
-                    description: Text("Connect the browser extension or route an AI client through the local gateway.")
+                    description: Text("Use the browser connector, agent runner, or tools/smoke_test.sh to exercise the gateway.")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -159,6 +183,11 @@ private struct EventRow: View {
                 HStack {
                     Text(event.provider.displayName)
                         .font(.caption.weight(.semibold))
+                    if event.channel != .model && event.channel != .unknown {
+                        Text(event.channel.rawValue.uppercased())
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.red)
+                    }
                     Text("· \(event.purpose)")
                         .font(.caption)
                         .lineLimit(1)
@@ -207,8 +236,8 @@ struct SettingsView: View {
                 }
             }
             Section("Security boundary") {
-                Label("Secrets, Git history, credential files and unapproved upload growth are blocked.", systemImage: "lock.shield")
-                Text("System-wide enforcement requires an Apple Network Extension entitlement. Configured clients and the isolated runner are enforced now.")
+                Label("Secrets, Git history, credential files, storage/telemetry uploads and unapproved growth are blocked.", systemImage: "lock.shield")
+                Text("Block all keeps the gateway up and denies every transfer. System-wide process visibility still needs Apple Endpoint Security and Network Extension entitlements.")
                     .foregroundStyle(.secondary)
             }
         }

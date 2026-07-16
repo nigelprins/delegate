@@ -11,6 +11,7 @@ private struct VaultState: Codable {
 final class AppModel: ObservableObject {
     @Published private(set) var events: [SecurityEvent]
     @Published private(set) var isPaused = false
+    @Published private(set) var isLockedDown = false
     @Published private(set) var gatewayError: String?
 
     let pairingToken: String
@@ -61,6 +62,20 @@ final class AppModel: ObservableObject {
         } else {
             gateway.stop()
             isPaused = true
+        }
+    }
+
+    func toggleLockdown() {
+        isLockedDown.toggle()
+        gateway.setLockedDown(isLockedDown)
+        if isLockedDown, isPaused {
+            do {
+                try gateway.start()
+                isPaused = false
+                gatewayError = nil
+            } catch {
+                gatewayError = error.localizedDescription
+            }
         }
     }
 

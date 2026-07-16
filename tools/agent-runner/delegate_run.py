@@ -6,14 +6,18 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
+DEFAULT_GATEWAY = "http://127.0.0.1:43121"
 SENSITIVE_NAMES = {
     ".env",
     ".git",
@@ -57,6 +61,37 @@ def parse_args() -> argparse.Namespace:
         "--yes",
         action="store_true",
         help="Run after printing the manifest without an interactive confirmation.",
+    )
+    parser.add_argument(
+        "--provider",
+        default="xAI",
+        choices=["openAI", "anthropic", "xAI", "ollama", "custom"],
+        help="Provider label reported to the local Delegate gateway.",
+    )
+    parser.add_argument(
+        "--endpoint",
+        default="https://api.x.ai/v1/responses",
+        help="Destination endpoint declared for policy evaluation.",
+    )
+    parser.add_argument(
+        "--purpose",
+        default="Isolated coding-agent session",
+        help="Short purpose string shown in the Delegate ledger.",
+    )
+    parser.add_argument(
+        "--gateway",
+        default=os.environ.get("DELEGATE_GATEWAY", DEFAULT_GATEWAY),
+        help="Local Delegate gateway base URL.",
+    )
+    parser.add_argument(
+        "--token",
+        default=os.environ.get("DELEGATE_TOKEN", ""),
+        help="Pairing token from the Delegate menu bar app.",
+    )
+    parser.add_argument(
+        "--skip-gateway",
+        action="store_true",
+        help="Do not report or gate the session through the local gateway.",
     )
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -132,6 +167,43 @@ def harden_grok(home: Path) -> None:
     )
 
 
+def evaluate_with_gateway(
+    gateway: str,
+    token: str,
+    provider: str,
+    endpoint: str,
+    purpose: str,
+    files: list[Path],
+    root: Path,
+    total_bytes: int,
+) -> dict:
+    relative_paths = [path.relative_to(root).as_posix() for path in files[:40]]
+    payload = {
+        "provider": provider,
+        "endpoint": endpoint,
+        "purpose": purpose,
+        "paths": relative_paths,
+        "contentSample": f"Isolated session with {len(files)} approved files",
+        "estimatedBytes": total_bytes,
+        "approvedBytes": total_bytes,
+        "includesGitHistory": False,
+        "classification": "internalData",
+        "channel": "model",
+        "fileCount": len(files),
+    }
+    request = urllib.request.Request(
+        f"{gateway.rstrip('/')}/v1/evaluate",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Delegate-Token": token,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def main() -> int:
     args = parse_args()
     root = args.root.resolve()
@@ -145,7 +217,42 @@ def main() -> int:
     for path in files:
         print(f"  {path.relative_to(root)}  sha256:{digest(path)}")
 
-    if not args.yes:
+    already_prompted = False
+    if not args.skip_gateway:
+        token = args.token.strip()
+        if not token:
+            print(
+                "Set --token or DELEGATE_TOKEN from the Delegate menu bar app, "
+                "or pass --skip-gateway.",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            decision = evaluate_with_gateway(
+                args.gateway,
+                token,
+                args.provider,
+                args.endpoint,
+                args.purpose,
+                files,
+                root,
+                total,
+            )
+        except urllib.error.URLError as error:
+            print(f"Delegate gateway unavailable: {error}", file=sys.stderr)
+            return 3
+        verdict = decision.get("verdict", "deny")
+        reasons = "; ".join(decision.get("reasons", []))
+        print(f"Gateway verdict: {verdict} — {reasons}")
+        if verdict == "deny":
+            return 4
+        if verdict == "ask" and not args.yes:
+            answer = input("Gateway asks for approval. Continue? [y/N] ").strip().lower()
+            already_prompted = True
+            if answer not in {"y", "yes"}:
+                return 1
+
+    if not args.yes and not already_prompted:
         answer = input("Continue? [y/N] ").strip().lower()
         if answer not in {"y", "yes"}:
             return 1
@@ -169,6 +276,7 @@ def main() -> int:
             "TMPDIR": str(base / "tmp"),
             "DELEGATE_ISOLATED": "1",
             "DELEGATE_APPROVED_BYTES": str(total),
+            "DELEGATE_GATEWAY": args.gateway,
             "GROK_TELEMETRY_TRACE_UPLOAD": "false",
             "GROK_TELEMETRY_ENABLED": "false",
         }
